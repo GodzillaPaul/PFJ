@@ -330,6 +330,20 @@ input { font-family: inherit; }
   cursor: pointer;
 }
 .fx-refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
+.pdf-export-btn {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  color: white;
+  cursor: pointer;
+  margin-left: 8px;
+  font-weight: 700;
+}
+.pdf-export-btn:hover { filter: brightness(1.04); }
+.pdf-export-btn:disabled { opacity: 0.55; cursor: wait; }
 
 /* Summary chip */
 .summary-pill {
@@ -387,6 +401,47 @@ table.illu tr.milestone td { background: var(--milestone) !important; }
   text-align: center; color: var(--muted);
   padding: 60px 16px; font-size: 15px;
 }
+
+/* A4 PDF export stage. PFJ has no comparison panel, so the PDF keeps a compact
+   summary band and gives most of the page to the reconstructed table. */
+.pdf-stage {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 794px;
+  min-height: 1123px;
+  padding: 8px 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Microsoft JhengHei', 'PingFang TC', 'Heiti TC', 'Noto Sans TC', system-ui, Arial, sans-serif;
+  z-index: -1;
+}
+.pdf-sheet { width: 100%; min-height: 1107px; }
+.pdf-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.pdf-badge { display: inline-flex; align-items: center; min-height: 28px; border-radius: 999px; padding: 6px 18px; background: var(--accent); color: white; font-size: 15px; font-weight: 800; }
+.pdf-date { color: var(--muted); border: 1px solid var(--border); background: white; border-radius: 999px; padding: 6px 14px; font-size: 12px; }
+.pdf-summary-section { background: white; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; margin-bottom: 8px; }
+.pdf-summary-head { background: var(--accent); color: white; padding: 8px 14px; font-weight: 800; text-align: center; font-size: 15px; }
+.pdf-summary-body { display: grid; grid-template-columns: 1.15fr 1fr 1fr 1fr; gap: 0; }
+.pdf-metric { padding: 9px 12px; border-left: 1px solid var(--border); min-width: 0; }
+.pdf-metric:first-child { border-left: 0; background: var(--accent-row); }
+.pdf-metric span { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.2; }
+.pdf-metric strong { display: block; color: var(--ink); font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdf-metric:first-child strong { color: var(--accent); font-size: 18px; }
+.pdf-table-section { background: white; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.pdf-table-note { padding: 6px 12px; color: var(--muted); border-bottom: 1px solid var(--border); font-size: 10.5px; background: white; }
+.pdf-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9.7px; font-variant-numeric: tabular-nums; }
+.pdf-table th { padding: 5px 3px; border-bottom: 1px solid var(--accent-mint); background: var(--accent-light); color: var(--accent); text-align: center; white-space: nowrap; font-size: 9px; line-height: 1.12; font-weight: 700; }
+.pdf-table td { padding: 4px 4px; border-bottom: 1px solid #ececf0; text-align: right; white-space: nowrap; line-height: 1.12; }
+.pdf-table td.txt { text-align: center; color: var(--muted); }
+.pdf-table tr:nth-child(even) td { background: #fafafa; }
+.pdf-table tr.milestone td { background: var(--milestone) !important; }
+.pdf-table th:nth-child(1), .pdf-table th:nth-child(2),
+.pdf-table td:nth-child(1), .pdf-table td:nth-child(2) { width: 7.2%; }
+.pdf-table th:nth-child(3), .pdf-table th:nth-child(4),
+.pdf-table td:nth-child(3), .pdf-table td:nth-child(4) { width: 15.2%; }
+.pdf-table th:nth-child(5), .pdf-table th:nth-child(6), .pdf-table th:nth-child(7),
+.pdf-table td:nth-child(5), .pdf-table td:nth-child(6), .pdf-table td:nth-child(7) { width: 18.4%; }
 
 /* ============ AGE MODAL ============ */
 .am-overlay {
@@ -704,6 +759,7 @@ table.illu tr.milestone td { background: var(--milestone) !important; }
 
   <div class="summary-pill" id="summary-pill" style="display:none"></div>
   <button class="fx-refresh-btn" id="fxRefresh" style="margin-left:8px">↻ 更新匯率</button>
+  <button class="pdf-export-btn" id="pdfExportBtn" type="button">⇩ 匯出PDF</button>
 
   <div class="tbl-section" id="tbl-section" style="display:none">
     <div class="tbl-note">‧ 本保險為分紅保險單,保單紅利為預估值,本公司不保證其給付金額。最可能紅利‧繳清保險金額。</div>
@@ -719,7 +775,7 @@ table.illu tr.milestone td { background: var(--milestone) !important; }
         <tbody id="tbody"></tbody>
       </table>
     </div>
-    <div class="tbl-footer">※ 單位:<span id="tbl-unit">美元</span>。實際給付以富邦人壽核保保單條款為準。</div>
+    <div class="tbl-footer">※ 單位:<span id="tbl-unit">美元</span>。</div>
   </div>
   <div class="empty-msg" id="empty-msg">請輸入年齡後自動計算</div>
 </div></div>
@@ -995,6 +1051,8 @@ function recompute() {
     document.getElementById('h-age').classList.add('is-empty');
     document.getElementById('h-prem').textContent = '—';
     document.getElementById('amt-display').value = '';
+    state.reportRows = null;
+    state.breakEvenYear = null;
     document.getElementById('summary-pill').style.display = 'none';
     document.getElementById('tbl-section').style.display = 'none';
     document.getElementById('empty-msg').style.display = 'block';
@@ -1049,19 +1107,147 @@ function renderTable(rows) {
     if (rows[i].surr > rows[i].paid_cum) { beIdx = i; break; }
   }
   tbody.innerHTML = rows.map((r, i) => {
-    const profit = r.surr - r.paid_cum;
     const cls = i === beIdx ? 'milestone' : '';
-    return `<tr class="${cls}">` +
-      `<td class="txt">${r.year}</td>` +
-      `<td class="txt">${r.age}</td>` +
-      `<td>${r.paid_yr === 0 ? '—' : fmt0(convert(r.paid_yr))}</td>` +
-      `<td>${fmt0(convert(r.paid_cum))}</td>` +
-      `<td>${fmt0(convert(r.surr))}</td>` +
-      `<td>${profit <= 0 ? '—' : fmt0(convert(profit))}</td>` +
-      `<td><b>${fmt0(convert(r.death))}</b></td>` +
-      `</tr>`;
+    return `<tr class="${cls}">${benefitCellsHtml(r)}</tr>`;
   }).join('');
+  state.reportRows = rows;
+  state.breakEvenYear = beIdx >= 0 ? rows[beIdx].year : null;
   document.getElementById('tbl-unit').textContent = state.currency === 'TWD' ? '新台幣元' : '美元';
+}
+
+function benefitCellsHtml(r) {
+  const profit = r.surr - r.paid_cum;
+  return `<td class="txt">${r.year}</td>` +
+    `<td class="txt">${r.age}</td>` +
+    `<td>${r.paid_yr === 0 ? '—' : fmt0(convert(r.paid_yr))}</td>` +
+    `<td>${fmt0(convert(r.paid_cum))}</td>` +
+    `<td>${fmt0(convert(r.surr))}</td>` +
+    `<td>${profit <= 0 ? '—' : fmt0(convert(profit))}</td>` +
+    `<td><b>${fmt0(convert(r.death))}</b></td>`;
+}
+
+// ====== A4 PDF export ======
+function loadPdfScript(src, testFn) {
+  if (testFn()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existed = Array.from(document.scripts).find(s => s.getAttribute('src') === src);
+    if (existed) {
+      existed.addEventListener('load', resolve, {once: true});
+      existed.addEventListener('error', reject, {once: true});
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function reportRowsForPdf(rows) {
+  if (!rows || rows.length === 0) return [];
+  const maxRows = 48;
+  const selected = new Set();
+  const addYear = yr => {
+    const row = rows.find(r => r.year === yr);
+    if (row) selected.add(row.year);
+  };
+  const addAge = age => {
+    const row = rows.find(r => r.age === age);
+    if (row) selected.add(row.year);
+  };
+
+  for (let yr = 1; yr <= 11; yr += 1) addYear(yr);
+  for (let yr = 15; yr <= rows[rows.length - 1].year; yr += 5) addYear(yr);
+  for (let age = 64; age <= 94; age += 5) addAge(age);
+  selected.add(rows[rows.length - 1].year);
+
+  const age64 = rows.find(r => r.age === 64);
+  const startYr = age64 ? age64.year : 12;
+  for (const row of rows) {
+    if (selected.size >= maxRows) break;
+    if (row.year >= startYr && !selected.has(row.year)) selected.add(row.year);
+  }
+
+  return rows.filter(r => selected.has(r.year));
+}
+
+function buildPdfReportElement() {
+  const rows = state.reportRows || [];
+  const shownRows = reportRowsForPdf(rows);
+  const unit = state.currency === 'TWD' ? '新台幣元' : '美元';
+  const today = new Date().toLocaleDateString('zh-TW', {year: 'numeric', month: '2-digit', day: '2-digit'});
+  const periodLbl = periodLabel(state.period);
+  const gender = state.gender === 2 ? '女' : '男';
+  const result = (state.insAge >= 0) ? compute(state.gender, state.insAge, state.period, state.sumInsured) : null;
+  const row6 = result?.rows?.[5];
+  const lastRow = rows[rows.length - 1];
+  const headRows = Array.from(document.querySelectorAll('table.illu thead th')).map(th => `<th>${th.textContent}</th>`).join('');
+  const bodyRows = shownRows.map(r => {
+    const cls = state.breakEvenYear === r.year ? 'milestone' : '';
+    return `<tr class="${cls}">${benefitCellsHtml(r)}</tr>`;
+  }).join('');
+
+  const stage = document.createElement('div');
+  stage.className = 'pdf-stage';
+  stage.innerHTML = `
+    <div class="pdf-sheet">
+      <div class="pdf-topbar">
+        <div class="pdf-badge">${periodLbl} · ${state.sumInsured} 萬 · ${gender}${state.insAge}歲 · 折扣率 ${result ? result.discount_pct : '—'}%</div>
+        <div class="pdf-date">產出日期 ${today}</div>
+      </div>
+      <section class="pdf-summary-section">
+        <div class="pdf-summary-head">${CONFIG.code} ${CONFIG.name}</div>
+        <div class="pdf-summary-body">
+          <div class="pdf-metric"><span>折扣後年繳保費</span><strong>${result ? fmt0(convert(result.annual_disc)) : '—'} <small>${unit}</small></strong></div>
+          <div class="pdf-metric"><span>第 6 年身故金</span><strong>${row6 ? fmt0(convert(row6.death)) : '—'}</strong></div>
+          <div class="pdf-metric"><span>第 6 年解約金</span><strong>${row6 ? fmt0(convert(row6.surr)) : '—'}</strong></div>
+          <div class="pdf-metric"><span>滿期身故/解約金</span><strong>${lastRow ? fmt0(convert(lastRow.death)) : '—'}</strong></div>
+        </div>
+      </section>
+      <section class="pdf-table-section">
+        <div class="pdf-table-note">‧ 本保險為分紅保險單,保單紅利為預估值,本公司不保證其給付金額。最可能紅利‧繳清保險金額。</div>
+        <table class="pdf-table"><thead><tr>${headRows}</tr></thead><tbody>${bodyRows}</tbody></table>
+      </section>
+    </div>`;
+  return stage;
+}
+
+async function exportPdf() {
+  if (!state.reportRows || !state.reportRows.length) {
+    alert('請先完成試算後再匯出 PDF。');
+    return;
+  }
+  const btn = document.getElementById('pdfExportBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '產生中...';
+  let stage = null;
+  try {
+    await loadPdfScript('assets/vendor/html2canvas.min.js', () => !!window.html2canvas);
+    await loadPdfScript('assets/vendor/jspdf.umd.min.js', () => !!window.jspdf?.jsPDF);
+    stage = buildPdfReportElement();
+    document.body.appendChild(stage);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const canvas = await window.html2canvas(stage, {
+      scale: 2,
+      backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#f5f5f7',
+      useCORS: true,
+      logging: false
+    });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
+    const gender = state.gender === 2 ? '女' : '男';
+    pdf.save(`${CONFIG.code}${CONFIG.name}_${gender}${state.insAge}歲_${periodLabel(state.period).replace(/\s/g, '')}.pdf`);
+  } catch (err) {
+    console.error(err);
+    alert('PDF 匯出失敗，請稍後再試。');
+  } finally {
+    if (stage) stage.remove();
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 function showError(msg) {
@@ -1431,6 +1617,7 @@ document.getElementById('exrate').addEventListener('change', e => {
   if (!isNaN(v) && v >= 1 && v <= 100) setFxRate(v, 'manual');
 });
 document.getElementById('fxRefresh').addEventListener('click', fetchRate);
+document.getElementById('pdfExportBtn').addEventListener('click', exportPdf);
 
 document.querySelectorAll('#periodToggle .pill-btn').forEach(btn => {
   btn.addEventListener('click', () => {
